@@ -3,6 +3,30 @@ import Img1 from '../../assets/img1.jpg'
 import tutorialsdev from '../../assets/img2.jpg'
 import Input from '../../components/Input'
 import { io } from 'socket.io-client'
+import { useNavigate } from 'react-router-dom'
+
+const Toast = ({ message, type, onClose }) => {
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			onClose();
+		}, 5000);
+		
+		return () => clearTimeout(timer);
+	}, [onClose]);
+
+	const bgColor = type === 'error' ? 'bg-red-500' : 'bg-green-500';
+	
+	return (
+		<div className={`fixed top-4 right-4 ${bgColor} text-white px-4 py-2 rounded-md shadow-lg flex items-center z-50`}>
+			<span>{message}</span>
+			<button onClick={onClose} className="ml-4 text-white">
+				<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+					<path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+				</svg>
+			</button>
+		</div>
+	);
+};
 
 const Dashboard = () => {
 	const [user, setUser] = useState(JSON.parse(localStorage.getItem('user:detail')))
@@ -12,6 +36,8 @@ const Dashboard = () => {
 	const [users, setUsers] = useState([])
 	const [socket, setSocket] = useState(null)
 	const messageRef = useRef(null)
+	const [toast, setToast] = useState({ show: false, message: '', type: 'success' })
+	const navigate = useNavigate()
 
 	useEffect(() => {
 		setSocket(io('http://localhost:8080'))
@@ -96,15 +122,80 @@ const Dashboard = () => {
 		});
 	}
 
+	const showToast = (message, type = 'success') => {
+		setToast({ show: true, message, type });
+	};
+
+	const closeToast = () => {
+		setToast({ ...toast, show: false });
+	};
+
+	const handleLogout = async () => {
+		try {
+			const token = localStorage.getItem('user:token');
+			const res = await fetch('http://localhost:8000/api/logout', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
+				}
+			});
+
+			const data = await res.json();
+
+			if (res.ok) {
+				// Clear local storage
+				localStorage.removeItem('user:token');
+				localStorage.removeItem('user:detail');
+
+				// Disconnect socket
+				socket?.disconnect();
+
+				// Show success toast
+				showToast('Logged out successfully', 'success');
+
+				// Navigate to login page after a short delay
+				setTimeout(() => {
+					navigate('/users/sign_in');
+				}, 1000);
+			} else {
+				showToast(data.message || 'Logout failed', 'error');
+			}
+		} catch (error) {
+			console.error('Logout error:', error);
+			showToast('Error during logout. Please try again.', 'error');
+		}
+	};
+
 	return (
 		<div className='w-screen flex'>
+			{toast.show && (
+				<Toast
+					message={toast.message}
+					type={toast.type}
+					onClose={closeToast}
+				/>
+			)}
 			<div className='w-[25%] h-screen bg-secondary overflow-scroll'>
-				<div className='flex items-center my-8 mx-14'>
-					<div><img src={tutorialsdev} width={75} height={75} className='border border-primary p-[2px] rounded-full' /></div>
-					<div className='ml-8'>
-						<h3 className='text-2xl'>{user?.fullName}</h3>
-						<p className='text-lg font-light'>My Account</p>
+				<div className='flex items-center justify-between my-8 mx-14'>
+					<div className='flex items-center'>
+						<div>
+							<img src={tutorialsdev} width={75} height={75} className='border border-primary p-[2px] rounded-full' />
+						</div>
+						<div className='ml-8'>
+							<h3 className='text-2xl'>{user?.fullName}</h3>
+							<p className='text-lg font-light'>My Account</p>
+						</div>
 					</div>
+					<button
+						onClick={handleLogout}
+						className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full transition-colors duration-200 flex items-center"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+							<path fillRule="evenodd" d="M3 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3zm11.707 4.707a1 1 0 0 0-1.414-1.414L10 9.586 6.707 6.293a1 1 0 0 0-1.414 1.414L8.586 11l-3.293 3.293a1 1 0 1 0 1.414 1.414L10 12.414l3.293 3.293a1 1 0 0 0 1.414-1.414L11.414 11l3.293-3.293z" clipRule="evenodd" />
+						</svg>
+						Logout
+					</button>
 				</div>
 				<hr />
 				<div className='mx-14 mt-10'>
